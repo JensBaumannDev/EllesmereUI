@@ -74,6 +74,7 @@ local defaults = {
     textSlotCenter = "none",
     healthTextColor = { r = 1, g = 1, b = 1 },
     showTargetArrows = false,
+    targetArrowScale = 1.0,
     showClassPower = false,
     classPowerPos = "bottom",
     classPowerYOffset = 1,
@@ -1198,14 +1199,18 @@ local frameCache = CreateFramePool("Frame", UIParent, nil, nil, false, function(
     plate.name:SetMaxLines(1)
     plate.leftArrow = plate:CreateTexture(nil, "OVERLAY")
     plate.leftArrow:SetTexture("Interface\\AddOns\\EllesmereUINameplates\\Media\\arrow_left.png")
-    PP.Size(plate.leftArrow, 11, 16)
-    PP.Point(plate.leftArrow, "RIGHT", plate.health, "LEFT", -8, 0)
-    plate.leftArrow:Hide()
     plate.rightArrow = plate:CreateTexture(nil, "OVERLAY")
     plate.rightArrow:SetTexture("Interface\\AddOns\\EllesmereUINameplates\\Media\\arrow_right.png")
-    PP.Size(plate.rightArrow, 11, 16)
-    PP.Point(plate.rightArrow, "LEFT", plate.health, "RIGHT", 8, 0)
-    plate.rightArrow:Hide()
+    do
+        local sc = (EllesmereUINameplatesDB and EllesmereUINameplatesDB.targetArrowScale) or 1.0
+        local aw, ah = math.floor(11 * sc + 0.5), math.floor(16 * sc + 0.5)
+        PP.Size(plate.leftArrow,  aw, ah)
+        PP.Point(plate.leftArrow,  "RIGHT", plate.health, "LEFT",  -8, 0)
+        plate.leftArrow:Hide()
+        PP.Size(plate.rightArrow, aw, ah)
+        PP.Point(plate.rightArrow, "LEFT",  plate.health, "RIGHT",  8, 0)
+        plate.rightArrow:Hide()
+    end
     plate.raidFrame = CreateFrame("Frame", nil, plate)
     local rmSize = GetRaidMarkerSize()
     PP.Size(plate.raidFrame, rmSize, rmSize)
@@ -3402,6 +3407,10 @@ function NameplateFrame:ApplyTarget()
     end
     if EllesmereUINameplatesDB and EllesmereUINameplatesDB.showTargetArrows then
         if isTarget then
+            local sc = EllesmereUINameplatesDB.targetArrowScale or 1.0
+            local aw, ah = math.floor(11 * sc + 0.5), math.floor(16 * sc + 0.5)
+            PP.Size(self.leftArrow,  aw, ah)
+            PP.Size(self.rightArrow, aw, ah)
             self.leftArrow:Show()
             self.rightArrow:Show()
         else

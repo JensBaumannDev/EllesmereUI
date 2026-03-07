@@ -496,6 +496,7 @@ local function CreateStatusBar(parent, name, w, h, borderSize, borderR, borderG,
     bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
     bar:SetMinMaxValues(0, 1)
     bar:SetValue(0)
+    bar:EnableMouse(false)
 
     -- Background
     local bg = bar:CreateTexture(nil, "BACKGROUND")
@@ -521,6 +522,7 @@ local function CreateStatusBar(parent, name, w, h, borderSize, borderR, borderG,
     local textFrame = CreateFrame("Frame", nil, bar)
     textFrame:SetAllPoints(bar)
     textFrame:SetFrameLevel(bar:GetFrameLevel() + 2)
+    textFrame:EnableMouse(false)
     local text = textFrame:CreateFontString(nil, "OVERLAY")
     text:SetFont(GetRBFont(), 11, "")
     text:SetShadowOffset(1, -1)
@@ -788,11 +790,36 @@ local function RegisterUnlockElements()
         savePosition = function(_, point, relPoint, x, y, scale)
             if not point then return end
             local sp = ERB.db.profile.secondary
-            sp.unlockPos = { point = point, relPoint = relPoint or point, x = x, y = y }
+            -- For pip-based bars, normalize to CENTER so position stays valid
+            -- if pip count changes (which alters total bar width).
+            local isBarType = cachedSecondary and cachedSecondary.type == "bar"
+            if not isBarType and secondaryFrame then
+                -- Convert the given anchor to a CENTER-relative offset
+                local cx, cy = secondaryFrame:GetCenter()
+                local uiScale = UIParent:GetEffectiveScale()
+                local fScale  = secondaryFrame:GetEffectiveScale()
+                if cx and cy then
+                    local screenCX = cx * fScale / uiScale
+                    local screenCY = cy * fScale / uiScale
+                    local uiW = UIParent:GetWidth()
+                    local uiH = UIParent:GetHeight()
+                    sp.unlockPos = {
+                        point    = "CENTER",
+                        relPoint = "CENTER",
+                        x        = screenCX - uiW / 2,
+                        y        = screenCY - uiH / 2,
+                    }
+                else
+                    sp.unlockPos = { point = point, relPoint = relPoint or point, x = x, y = y }
+                end
+            else
+                sp.unlockPos = { point = point, relPoint = relPoint or point, x = x, y = y }
+            end
             if scale then sp.scale = scale end
             if secondaryFrame then
                 secondaryFrame:ClearAllPoints()
-                secondaryFrame:SetPoint(point, UIParent, relPoint or point, x, y)
+                local pos = sp.unlockPos
+                secondaryFrame:SetPoint(pos.point, UIParent, pos.relPoint or pos.point, pos.x or 0, pos.y or 0)
                 if scale then secondaryFrame:SetScale(scale) end
             end
         end,
@@ -904,6 +931,30 @@ end
 -- offsetX, offsetY: additional offsets
 -- growthDir: "UP", "DOWN", "LEFT", "RIGHT" — which direction the bar grows from the anchor edge
 -- growCentered: true = bar centered on anchor edge midpoint; false = bar corner at anchor edge midpoint
+-- Recursively set mouse passthrough on a frame and all its children.
+-- Stores original state on first call so it can be restored.
+local function SetFrameClickThrough(frame, clickThrough)
+    if not frame then return end
+    if clickThrough then
+        -- Store original state if not already stored
+        if frame._erbMouseWas == nil then
+            frame._erbMouseWas = frame:IsMouseEnabled()
+        end
+        frame:EnableMouse(false)
+        if frame.EnableMouseClicks then frame:EnableMouseClicks(false) end
+        if frame.EnableMouseMotion then frame:EnableMouseMotion(false) end
+    else
+        -- Restore original state
+        if frame._erbMouseWas ~= nil then
+            frame:EnableMouse(frame._erbMouseWas)
+            frame._erbMouseWas = nil
+        end
+    end
+    for _, child in ipairs({ frame:GetChildren() }) do
+        SetFrameClickThrough(child, clickThrough)
+    end
+end
+
 local function ApplyBarAnchor(frame, anchorKey, anchorPos, offsetX, offsetY, growthDir, growCentered)
     -- Always clear any previous mouse-tracking OnUpdate
     if frame._erbMouseTrack then
@@ -911,7 +962,8 @@ local function ApplyBarAnchor(frame, anchorKey, anchorPos, offsetX, offsetY, gro
         frame._erbMouseTrack = nil
         frame:SetFrameStrata("LOW")
         frame:SetFrameLevel(5)
-        -- Restore mouse motion (was disabled while cursor-following)
+        -- Restore mouse on frame and all children
+        SetFrameClickThrough(frame, false)
         if frame.EnableMouseMotion then frame:EnableMouseMotion(true) end
     end
 
@@ -955,9 +1007,8 @@ local function ApplyBarAnchor(frame, anchorKey, anchorPos, offsetX, offsetY, gro
         frame:ClearAllPoints()
         frame:SetPoint(pointFrom, UIParent, "BOTTOMLEFT", 0, 0)
         frame._erbMouseTrack = true
-        -- Make fully click-through while following cursor
-        if frame.EnableMouseClicks then frame:EnableMouseClicks(false) end
-        if frame.EnableMouseMotion then frame:EnableMouseMotion(false) end
+        -- Make frame and all children fully click-through while following cursor
+        SetFrameClickThrough(frame, true)
         local lastMX, lastMY
         frame:SetScript("OnUpdate", function()
             local s = UIParent:GetEffectiveScale()

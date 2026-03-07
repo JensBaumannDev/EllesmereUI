@@ -4212,8 +4212,9 @@ function ns.RequestClose(save, afterFn)
             CommitPositions()
             DoClose()
         end,
-        -- Dismiss (ESC / click-off) does nothing — user stays in unlock mode
-        onDismiss = function() end,
+        -- Dismiss (ESC / click-off) does nothing — user stays in unlock mode,
+        -- and any pending close callback is cleared since the close was abandoned
+        onDismiss = function() pendingAfterClose = nil end,
     })
 end
 

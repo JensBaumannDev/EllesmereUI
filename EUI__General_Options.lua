@@ -3067,7 +3067,7 @@ initFrame:SetScript("OnEvent", function(self)
     EllesmereUI:RegisterModule(GLOBAL_KEY, {
         title       = "Global Settings",
         description = "General options for all EllesmereUI addons.",
-        pages       = { PAGE_GENERAL, PAGE_CORE, PAGE_COLORS, PAGE_PROFILES },
+        pages       = { PAGE_GENERAL, PAGE_CORE, PAGE_COLORS, PAGE_ADDONS, PAGE_PROFILES },
         disabledPages = disabledList,
         disabledPageTooltips = disabledTips,
         buildPage   = function(pageName, parent, yOffset)
@@ -3077,6 +3077,8 @@ initFrame:SetScript("OnEvent", function(self)
                 return BuildColorsPage(pageName, parent, yOffset)
             elseif pageName == PAGE_CORE then
                 return BuildCoreOptionsPage(pageName, parent, yOffset)
+            elseif pageName == PAGE_ADDONS then
+                return BuildEnabledAddonsPage(pageName, parent, yOffset)
             end
         end,
         onReset     = function()

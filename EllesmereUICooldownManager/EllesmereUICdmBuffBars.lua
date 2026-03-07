@@ -399,6 +399,7 @@ end
 ns.RefreshTBBResolvedIDs = RefreshTBBResolvedIDs
 
 function ns.BuildTrackedBuffBars()
+    if not TBB_ENABLED then return end
     if not ECME or not ECME.db then return end
     if InCombatLockdown() then
         _tbbRebuildPending = true
@@ -525,6 +526,7 @@ end
 --  Register Tracked Buff Bars with unlock mode
 -------------------------------------------------------------------------------
 function ns.RegisterTBBUnlockElements()
+    if not TBB_ENABLED then return end
     if not EllesmereUI or not EllesmereUI.RegisterUnlockElements then return end
     if not ECME or not ECME.db then return end
     local tbb = ns.GetTrackedBuffBars()

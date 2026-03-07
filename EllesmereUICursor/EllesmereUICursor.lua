@@ -64,86 +64,9 @@ local function InRealInstancedContent()
 end
 
 -------------------------------------------------------------------------------
---  Cursor visibility
+--  Cursor visibility (forward declaration — defined after trail/GCD/cast locals)
 -------------------------------------------------------------------------------
-local function UpdateVisibility()
-    if not f then return end
-    local p = ECL.db.profile
-    local shouldShow = (p.enabled ~= false)
-    if shouldShow and p.instanceOnly then
-        shouldShow = InRealInstancedContent()
-    end
-    if shouldShow and not isVisible then
-        isVisible = true
-        f:Show()
-    elseif not shouldShow and isVisible then
-        isVisible = false
-        f:Hide()
-    end
-
-    -- Trail: hide dots and suppress spawning when circle is hidden
-    if not shouldShow and trailEnabled then
-        HideTrailDots()
-    end
-
-    -- GCD circle instance-only check
-    if gcdRoot then
-        local g = GCD_DB()
-        if g.enabled then
-            if g.instanceOnly and not InRealInstancedContent() then
-                gcdRoot:Hide()
-                gcdRoot:SetScript("OnUpdate", nil)
-            else
-                gcdRoot:Show()
-                -- Re-apply cursor tracking since cursor visibility may have changed
-                if g.attached ~= false then
-                    local cursorVisible = f and f:IsShown()
-                    if cursorVisible then
-                        gcdRoot:SetScript("OnUpdate", nil)
-                        gcdRoot:ClearAllPoints()
-                        gcdRoot:SetPoint("CENTER", f, "CENTER", 0, 0)
-                    else
-                        gcdRoot:SetScript("OnUpdate", function()
-                            local sc = UIParent:GetEffectiveScale()
-                            local mx, my = GetCursorPosition()
-                            gcdRoot:ClearAllPoints()
-                            gcdRoot:SetPoint("CENTER", UIParent, "BOTTOMLEFT", floor(mx / sc + 0.5), floor(my / sc + 0.5))
-                        end)
-                    end
-                end
-            end
-        end
-    end
-
-    -- Cast circle instance-only check
-    if castRoot then
-        local c = Cast_DB()
-        if c.enabled then
-            if c.instanceOnly and not InRealInstancedContent() then
-                castRoot:Hide()
-                castRoot:SetScript("OnUpdate", nil)
-            else
-                castRoot:Show()
-                -- Re-apply cursor tracking since cursor visibility may have changed
-                if c.attached ~= false then
-                    local cursorVisible = f and f:IsShown()
-                    if cursorVisible then
-                        castRoot:SetScript("OnUpdate", nil)
-                        castRoot:ClearAllPoints()
-                        castRoot:SetPoint("CENTER", f, "CENTER", 0, 0)
-                    else
-                        castRoot:SetScript("OnUpdate", function()
-                            local sc = UIParent:GetEffectiveScale()
-                            local mx, my = GetCursorPosition()
-                            castRoot:ClearAllPoints()
-                            castRoot:SetPoint("CENTER", UIParent, "BOTTOMLEFT", floor(mx / sc + 0.5), floor(my / sc + 0.5))
-                        end)
-                    end
-                end
-            end
-        end
-    end
-end
+local UpdateVisibility
 
 local lastUseClassColor
 
@@ -569,6 +492,87 @@ local castAttached = true
 local function Cast_DB()
     local p = ECL.db and ECL.db.profile
     return p and p.castCircle or {}
+end
+
+-- Defined here so it closes over the real trailEnabled, HideTrailDots,
+-- gcdRoot, GCD_DB, castRoot, and Cast_DB locals declared above.
+UpdateVisibility = function()
+    if not f then return end
+    local p = ECL.db.profile
+    local shouldShow = (p.enabled ~= false)
+    if shouldShow and p.instanceOnly then
+        shouldShow = InRealInstancedContent()
+    end
+    if shouldShow and not isVisible then
+        isVisible = true
+        f:Show()
+    elseif not shouldShow and isVisible then
+        isVisible = false
+        f:Hide()
+    end
+
+    -- Trail: hide dots and suppress spawning when circle is hidden
+    if not shouldShow and trailEnabled then
+        HideTrailDots()
+    end
+
+    -- GCD circle instance-only check
+    if gcdRoot then
+        local g = GCD_DB()
+        if g.enabled then
+            if g.instanceOnly and not InRealInstancedContent() then
+                gcdRoot:Hide()
+                gcdRoot:SetScript("OnUpdate", nil)
+            else
+                gcdRoot:Show()
+                -- Re-apply cursor tracking since cursor visibility may have changed
+                if g.attached ~= false then
+                    local cursorVisible = f and f:IsShown()
+                    if cursorVisible then
+                        gcdRoot:SetScript("OnUpdate", nil)
+                        gcdRoot:ClearAllPoints()
+                        gcdRoot:SetPoint("CENTER", f, "CENTER", 0, 0)
+                    else
+                        gcdRoot:SetScript("OnUpdate", function()
+                            local sc = UIParent:GetEffectiveScale()
+                            local mx, my = GetCursorPosition()
+                            gcdRoot:ClearAllPoints()
+                            gcdRoot:SetPoint("CENTER", UIParent, "BOTTOMLEFT", floor(mx / sc + 0.5), floor(my / sc + 0.5))
+                        end)
+                    end
+                end
+            end
+        end
+    end
+
+    -- Cast circle instance-only check
+    if castRoot then
+        local c = Cast_DB()
+        if c.enabled then
+            if c.instanceOnly and not InRealInstancedContent() then
+                castRoot:Hide()
+                castRoot:SetScript("OnUpdate", nil)
+            else
+                castRoot:Show()
+                -- Re-apply cursor tracking since cursor visibility may have changed
+                if c.attached ~= false then
+                    local cursorVisible = f and f:IsShown()
+                    if cursorVisible then
+                        castRoot:SetScript("OnUpdate", nil)
+                        castRoot:ClearAllPoints()
+                        castRoot:SetPoint("CENTER", f, "CENTER", 0, 0)
+                    else
+                        castRoot:SetScript("OnUpdate", function()
+                            local sc = UIParent:GetEffectiveScale()
+                            local mx, my = GetCursorPosition()
+                            castRoot:ClearAllPoints()
+                            castRoot:SetPoint("CENTER", UIParent, "BOTTOMLEFT", floor(mx / sc + 0.5), floor(my / sc + 0.5))
+                        end)
+                    end
+                end
+            end
+        end
+    end
 end
 
 local function CreateCastCircle()

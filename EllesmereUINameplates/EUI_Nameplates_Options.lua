@@ -493,6 +493,7 @@ initFrame:SetScript("OnEvent", function(self)
         arrows.right:SetSize(11, 16)
         arrows.right:SetPoint("LEFT", health, "RIGHT", 8, 0)
         arrows.right:Hide()
+        pf._arrows = arrows  -- expose for Update resizing
 
         -- Classification icon (elite dragon) â€” shown when transient toggle is on
         local classIcon = pf:CreateTexture(nil, "OVERLAY")
@@ -726,6 +727,13 @@ initFrame:SetScript("OnEvent", function(self)
             local barW       = IsDragging() and rawBarW or Snap(rawBarW)
             local castH      = Snap(DBVal("castBarHeight") or defaults.castBarHeight)
             local showArrows = DBVal("showTargetArrows") == true
+            local arrowScale = DBVal("targetArrowScale") or defaults.targetArrowScale or 1.0
+            local arrowW = math.floor(11 * arrowScale + 0.5)
+            local arrowH = math.floor(16 * arrowScale + 0.5)
+            if pf._arrows then
+                pf._arrows.left:SetSize(arrowW, arrowH)
+                pf._arrows.right:SetSize(arrowW, arrowH)
+            end
             local cbColor    = (DB() and DB().castBar) or defaults.castBar
             local debuffY    = DBVal("debuffYOffset") or defaults.debuffYOffset
 
@@ -3176,6 +3184,50 @@ initFrame:SetScript("OnEvent", function(self)
                 end
                 UpdatePreview()
               end });  y = y - h
+
+        -- Inline cog on Show Arrows (right region) for arrow scale
+        do
+            local rightRgn = targetGlowRow._rightRegion
+            local arrowOff = function() return DBVal("showTargetArrows") ~= true end
+            local _, arrowCogShow = EllesmereUI.BuildCogPopup({
+                title = "Arrow Scale",
+                rows = {
+                    { type="slider", label="Scale", min=0.5, max=3.0, step=0.1,
+                      get=function() return DBVal("targetArrowScale") or defaults.targetArrowScale or 1.0 end,
+                      set=function(v)
+                        DB().targetArrowScale = v
+                        for _, plate in pairs(plates) do
+                            local sc = v
+                            local aw = math.floor(11 * sc + 0.5)
+                            local ah = math.floor(16 * sc + 0.5)
+                            if plate.leftArrow then PP.Size(plate.leftArrow, aw, ah) end
+                            if plate.rightArrow then PP.Size(plate.rightArrow, aw, ah) end
+                        end
+                        UpdatePreview()
+                      end },
+                },
+            })
+            local arrowCogBtn = CreateFrame("Button", nil, rightRgn)
+            arrowCogBtn:SetSize(26, 26)
+            arrowCogBtn:SetPoint("RIGHT", rightRgn._control, "LEFT", -8, 0)
+            rightRgn._lastInline = arrowCogBtn
+            arrowCogBtn:SetFrameLevel(rightRgn:GetFrameLevel() + 5)
+            local arrowCogTex = arrowCogBtn:CreateTexture(nil, "OVERLAY")
+            arrowCogTex:SetAllPoints()
+            arrowCogTex:SetTexture(EllesmereUI.RESIZE_ICON)
+            local function UpdateArrowCogAlpha()
+                arrowCogBtn:SetAlpha(arrowOff() and 0.15 or 0.4)
+            end
+            EllesmereUI.RegisterWidgetRefresh(UpdateArrowCogAlpha)
+            UpdateArrowCogAlpha()
+            arrowCogBtn:SetScript("OnClick", function(self)
+                if not arrowOff() then arrowCogShow(self) end
+            end)
+            arrowCogBtn:SetScript("OnEnter", function(self)
+                if not arrowOff() then self:SetAlpha(0.75) end
+            end)
+            arrowCogBtn:SetScript("OnLeave", function(self) UpdateArrowCogAlpha() end)
+        end
 
         -- Eye icon to the left of the Target Glow Style dropdown to toggle glow on preview
         do

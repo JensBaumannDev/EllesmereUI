@@ -890,6 +890,14 @@ local function SaveCurrentSpecProfile()
     -- 2) Bar Glows (full table)
     prof.barGlows = DeepCopy(p.barGlows)
 
+    -- 3) Tracked buff bar state
+    if p.trackedBuffBars then
+        prof.trackedBuffBars = DeepCopy(p.trackedBuffBars)
+    end
+    if p.tbbPositions then
+        prof.tbbPositions = DeepCopy(p.tbbPositions)
+    end
+
     p.specProfiles[specKey] = prof
 end
 
@@ -926,6 +934,14 @@ local function LoadSpecProfile(specKey)
         -- Restore bar glows
         if prof.barGlows then
             p.barGlows = DeepCopy(prof.barGlows)
+        end
+
+        -- Restore tracked buff bar state
+        if prof.trackedBuffBars ~= nil then
+            p.trackedBuffBars = DeepCopy(prof.trackedBuffBars)
+        end
+        if prof.tbbPositions ~= nil then
+            p.tbbPositions = DeepCopy(prof.tbbPositions)
         end
     else
         -- No saved profile for this spec: initialize fresh
@@ -1978,6 +1994,29 @@ local function CDMFrameAnchorPoint(anchorSide, grow, centered)
 end
 
 -------------------------------------------------------------------------------
+--  Recursive click-through helper — disables/restores mouse on a frame tree
+-------------------------------------------------------------------------------
+local function SetFrameClickThrough(frame, clickThrough)
+    if not frame then return end
+    if clickThrough then
+        if frame._cdmMouseWas == nil then
+            frame._cdmMouseWas = frame:IsMouseEnabled()
+        end
+        frame:EnableMouse(false)
+        if frame.EnableMouseClicks then frame:EnableMouseClicks(false) end
+        if frame.EnableMouseMotion then frame:EnableMouseMotion(false) end
+    else
+        if frame._cdmMouseWas ~= nil then
+            frame:EnableMouse(frame._cdmMouseWas)
+            frame._cdmMouseWas = nil
+        end
+    end
+    for _, child in ipairs({ frame:GetChildren() }) do
+        SetFrameClickThrough(child, clickThrough)
+    end
+end
+
+-------------------------------------------------------------------------------
 --  Build a single CDM bar frame
 -------------------------------------------------------------------------------
 BuildCDMBar = function(barIndex)
@@ -2009,6 +2048,8 @@ BuildCDMBar = function(barIndex)
                 p.cdmBarPositions[key] = frame._preMousePos
             end
             frame._preMousePos = nil
+            SetFrameClickThrough(frame, false)
+            if frame.EnableMouseMotion then frame:EnableMouseMotion(true) end
         end
         frame:Hide()
         return
@@ -2031,7 +2072,8 @@ BuildCDMBar = function(barIndex)
         -- Restore default strata when leaving cursor anchor
         frame:SetFrameStrata("LOW")
         frame:SetFrameLevel(5)
-        -- Restore mouse motion (was disabled while cursor-following)
+        -- Restore mouse on frame and all children
+        SetFrameClickThrough(frame, false)
         if frame.EnableMouseMotion then frame:EnableMouseMotion(true) end
     end
     frame._mouseGrow = nil
@@ -2069,9 +2111,8 @@ BuildCDMBar = function(barIndex)
         -- Elevate to TOOLTIP strata so the bar renders above all UI
         frame:SetFrameStrata("TOOLTIP")
         frame:SetFrameLevel(9980)
-        -- Make fully click-through while following cursor
-        if frame.EnableMouseClicks then frame:EnableMouseClicks(false) end
-        if frame.EnableMouseMotion then frame:EnableMouseMotion(false) end
+        -- Make frame and all children fully click-through while following cursor
+        SetFrameClickThrough(frame, true)
         local lastMX, lastMY
         frame:ClearAllPoints()
         frame:SetPoint(pointFrom, UIParent, "BOTTOMLEFT", 0, 0)
@@ -4690,7 +4731,9 @@ function ECME:OnEnable()
     EnsureMappings(GetStore())
 
     -- Initialize extracted modules
-    if ns.InitBarGlows then ns.InitBarGlows(self) end
+    if ns.InitBarGlows then
+        ns.InitBarGlows(self, GetTargetButton, GetActionButton, GetSortedSlots, StartNativeGlow, StopNativeGlow)
+    end
     if ns.InitBuffBars then ns.InitBuffBars(self) end
 
     -- CDM Bars: first-login capture or normal setup

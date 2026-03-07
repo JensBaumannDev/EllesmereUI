@@ -766,9 +766,10 @@ do
         end
     end
 
-    -- Listen for UI_SCALE_CHANGED to recalculate mult
+    -- Listen for UI_SCALE_CHANGED and DISPLAY_SIZE_CHANGED to recalculate mult
     local scaleWatcher = CreateFrame("Frame")
     scaleWatcher:RegisterEvent("UI_SCALE_CHANGED")
+    scaleWatcher:RegisterEvent("DISPLAY_SIZE_CHANGED")
     scaleWatcher:SetScript("OnEvent", function()
         PP.UpdateMult()
     end)
@@ -3377,9 +3378,9 @@ local function CreateMainFrame()
             if r ~= contentHeaderBg and r ~= contentHeaderDiv then regions[#regions + 1] = r end
         end
         if #children == 0 and #regions == 0 then return false end
-        -- Move children to stash so ClearContentHeaderInner can't touch them
+        -- Move children and regions to stash so ClearContentHeaderInner can't touch them
         for _, c in ipairs(children) do c:Hide(); c:SetParent(_chStash) end
-        for _, r in ipairs(regions) do r:Hide() end
+        for _, r in ipairs(regions) do r:Hide(); r:SetParent(_chStash) end
         _contentHeaderCache[cacheKey] = {
             children = children,
             regions  = regions,
@@ -3403,9 +3404,9 @@ local function CreateMainFrame()
         for _, r in ipairs(rg) do
             if r ~= contentHeaderBg and r ~= contentHeaderDiv then r:Hide() end
         end
-        -- Reparent cached children back to contentHeaderFrame and show
+        -- Reparent cached children and regions back to contentHeaderFrame and show
         for _, c in ipairs(entry.children) do c:SetParent(contentHeaderFrame); c:Show() end
-        for _, r in ipairs(entry.regions) do r:Show() end
+        for _, r in ipairs(entry.regions) do r:SetParent(contentHeaderFrame); r:Show() end
         contentHeaderFrame:Show()
         contentHeaderH = entry.height
         PanelPP.Height(contentHeaderFrame, entry.height)
@@ -5216,7 +5217,7 @@ end
 -------------------------------------------------------------------------------
 --  Slash commands
 -------------------------------------------------------------------------------
-EllesmereUI.VERSION = "3.1.5"
+EllesmereUI.VERSION = "3.2"
 
 -- Register this addon's version into a shared global table (taint-free at load time)
 if not _G._EUI_AddonVersions then _G._EUI_AddonVersions = {} end
