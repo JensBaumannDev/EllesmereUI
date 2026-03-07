@@ -109,6 +109,7 @@ local POWER_COLORS = {
     ["SOUL_FRAGMENTS_DEVOURER"]  = { 0.64, 0.19, 0.79 },
     ["MAELSTROM_WEAPON"] = { 0.00, 0.44, 0.87 },
     ["MAELSTROM_BAR"]    = { 0.00, 0.50, 1.00 },
+    ["INSANITY_BAR"]     = { 0.40, 0.00, 0.80 },
     ["TIP_OF_THE_SPEAR"] = { 0.67, 0.83, 0.45 },
     ["WHIRLWIND_STACKS"] = { 0.78, 0.61, 0.43 },
     ["BREWMASTER_STAGGER"] = { 0.52, 1.00, 0.52 },  -- green (light stagger default)
@@ -151,7 +152,10 @@ local function GetPrimaryPowerType()
         -- All shaman specs use Mana as primary; Maelstrom is a class resource
         -- displayed as a secondary bar (Elemental) or pips (Enhancement).
     end
-    if classFile == "PRIEST" and spec == 3 then return PT.INSANITY end
+    if classFile == "PRIEST" then
+        -- All priest specs use Mana as primary; Insanity is a class resource
+        -- displayed as a secondary bar (Shadow).
+    end
     if classFile == "MONK" then
         if spec == 1 then return PT.ENERGY end  -- Brewmaster
         if spec == 2 then return PT.MANA end    -- Mistweaver
@@ -219,6 +223,12 @@ local function GetSecondaryResource()
         if issecretvalue and issecretvalue(mx) then mx = 100 end
         if not mx or mx <= 0 then mx = 100 end
         return { power = "MAELSTROM_BAR", max = mx, type = "bar" }
+    elseif classFile == "PRIEST" and spec == 3 then
+        -- Shadow: Insanity as a bar (like Elemental maelstrom)
+        local mx = UnitPowerMax("player", PT.INSANITY)
+        if issecretvalue and issecretvalue(mx) then mx = 100 end
+        if not mx or mx <= 0 then mx = 100 end
+        return { power = "INSANITY_BAR", max = mx, type = "bar" }
     elseif classFile == "SHAMAN" and spec == 2 then
         -- Base max 5, or 10 with Raging Maelstrom talent; BuildBars
         -- overrides from GetMaelstromWeapon() at runtime.
@@ -1666,6 +1676,11 @@ local function UpdateSecondaryResource()
                 maxC = UnitPowerMax("player", PT.MAELSTROM) or maxPts
                 if issecretvalue and issecretvalue(maxC) then maxC = maxPts end
                 if maxC <= 0 then maxC = maxPts end
+            elseif powerType == "INSANITY_BAR" then
+                cur = UnitPower("player", PT.INSANITY) or 0
+                maxC = UnitPowerMax("player", PT.INSANITY) or maxPts
+                if issecretvalue and issecretvalue(maxC) then maxC = maxPts end
+                if maxC <= 0 then maxC = maxPts end
             elseif powerType == "BREWMASTER_STAGGER" then
                 cur = UnitStagger("player") or 0
                 maxC = UnitHealthMax("player") or 1
@@ -1718,6 +1733,13 @@ local function UpdateSecondaryResource()
                     -- Secret value path: try UnitPowerPercent first, fall back to tostring
                     if powerType == "MAELSTROM_BAR" then
                         local pct = UnitPowerPercent and UnitPowerPercent("player", PT.MAELSTROM) or 0
+                        if not issecretvalue(pct) then
+                            secondaryFrame._countText:SetText(format("%d", pct) .. "%")
+                        else
+                            secondaryFrame._countText:SetText(tostring(cur))
+                        end
+                    elseif powerType == "INSANITY_BAR" then
+                        local pct = UnitPowerPercent and UnitPowerPercent("player", PT.INSANITY) or 0
                         if not issecretvalue(pct) then
                             secondaryFrame._countText:SetText(format("%d", pct) .. "%")
                         else

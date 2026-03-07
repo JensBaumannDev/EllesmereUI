@@ -655,6 +655,9 @@ local function ApplyStackCount(icon, resolvedSid, auraInstanceID, auraUnit, show
 end
 local BuildAllCDMBars
 local RegisterCDMUnlockElements
+local ForceResnapshotMainBars
+local ForcePopulateBlizzardViewers
+local StartResnapshotRetry
 
 -------------------------------------------------------------------------------
 --  Defaults
@@ -4576,6 +4579,8 @@ function ns.AddTrackedSpell(barKey, id, isExtra)
                     if existing == id then return false end
                 end
                 b.trackedSpells[#b.trackedSpells + 1] = id
+                -- Clear removal flag so reconcile does not strip it
+                if b.removedSpells then b.removedSpells[id] = nil end
             end
             local frame = cdmBarFrames[barKey]
             if frame then frame._blizzCache = nil; frame._prevVisibleCount = nil end
@@ -4675,6 +4680,8 @@ function ns.ReplaceTrackedSpell(barKey, idx, newID, isExtra)
                         end
                         b.trackedSpells[idx] = newID
                         while #b.trackedSpells > 0 and (b.trackedSpells[#b.trackedSpells] == 0 or b.trackedSpells[#b.trackedSpells] == nil) do b.trackedSpells[#b.trackedSpells] = nil end
+                        -- Clear removal flag so reconcile does not strip it
+                        if b.removedSpells then b.removedSpells[newID] = nil end
                     end
                     local frame = cdmBarFrames[barKey]
                     if frame then frame._blizzCache = nil; frame._prevVisibleCount = nil end
@@ -4700,6 +4707,8 @@ function ns.ReplaceTrackedSpell(barKey, idx, newID, isExtra)
                             if ex == newID then found = true; break end
                         end
                         if not found then b.trackedSpells[#b.trackedSpells + 1] = newID end
+                        -- Clear removal flag so reconcile does not strip it
+                        if b.removedSpells then b.removedSpells[newID] = nil end
                     end
                     local frame = cdmBarFrames[barKey]
                     if frame then frame._blizzCache = nil; frame._prevVisibleCount = nil end
@@ -5133,7 +5142,7 @@ local _resnapshotAttempts = 0
 -- Temporarily show Blizzard CDM viewers at alpha 0 so their children
 -- populate, then immediately re-hide. Blizzard only populates frame children
 -- when the frames are shown; this forces that without the user ever seeing them.
-local function ForcePopulateBlizzardViewers(callback)
+ForcePopulateBlizzardViewers = function(callback)
     local p = ECME.db and ECME.db.profile
     if not p or not (p.cdmBars and p.cdmBars.hideBlizzard) then
         if callback then callback() end
@@ -5482,11 +5491,11 @@ local function ReconcileMainBarSpells()
     BuildAllCDMBars()
 end
 -- Keep old name as alias so existing callers work during transition
-local ForceResnapshotMainBars = ReconcileMainBarSpells
+ForceResnapshotMainBars = ReconcileMainBarSpells
 
 -- Cancel any running ticker and start a fresh retry cycle.
 -- Retries every 2s until all default bars have trackedSpells, up to ~35s.
-local function StartResnapshotRetry()
+StartResnapshotRetry = function()
     if _resnapshotTicker then
         _resnapshotTicker:Cancel()
         _resnapshotTicker = nil

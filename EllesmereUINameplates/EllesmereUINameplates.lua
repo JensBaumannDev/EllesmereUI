@@ -1886,6 +1886,7 @@ local CLASS_POWER_MAP = {
     EVOKER      = { Enum.PowerType.Essence,      5 },
     DEMONHUNTER = { [581] = { "SOUL_FRAGMENTS_VENGEANCE", 6 } },  -- Vengeance only (secret value)
     SHAMAN      = { [263] = { "MAELSTROM_WEAPON", 10 } },  -- Enhancement only
+    PRIEST      = { [258] = { "INSANITY_BAR", 100 } },     -- Shadow only
     HUNTER      = { [255] = { "TIP_OF_THE_SPEAR", 3 } },   -- Survival only
     WARRIOR     = { [72]  = { "WHIRLWIND_STACKS", 4 } },    -- Fury only
 }
@@ -2007,6 +2008,42 @@ local function UpdateClassPowerOnPlate(plate)
                 bar:SetStatusBarColor(0.2, 0.8, 0.2, 1)   -- green (light)
             end
         end
+
+        bar._bg:SetColorTexture(bgCol.r, bgCol.g, bgCol.b, bgCol.a)
+        bar:Show()
+        return
+    end
+
+    -- Bar-type resource (Shadow Priest Insanity): single StatusBar
+    if classPowerType == "INSANITY_BAR" then
+        for i = 1, #plate._cpPips do
+            plate._cpPips[i]:Hide()
+            if plate._cpPips[i]._bg then plate._cpPips[i]._bg:Hide() end
+            if plate._cpPips[i]._secretBar then plate._cpPips[i]._secretBar:Hide() end
+        end
+        EnsureClassPowerBar(plate)
+        local bar = plate._cpBar
+        local cur = UnitPower("player", 13) or 0  -- Enum.PowerType.Insanity = 13
+        local maxI = UnitPowerMax("player", 13) or 100
+        if issecretvalue and issecretvalue(maxI) then maxI = 100 end
+        if not maxI or maxI <= 0 then maxI = 100 end
+
+        local scaledW = CP_PIP_W * cpScale * 6
+        local scaledH = CP_PIP_H * cpScale
+        bar:ClearAllPoints()
+        bar:SetSize(scaledW, scaledH)
+        bar:SetPoint(anchorPoint, anchorFrame, anchorRelPoint,
+            cpXOff, yDir * cpYOff)
+        bar:SetMinMaxValues(0, maxI)
+        bar:SetValue(cur)
+
+        local _, pClass = UnitClass("player")
+        local cpColor = CP_CLASS_COLORS[pClass] or CP_DEFAULT_COLOR
+        if not GetClassPowerClassColors() then
+            local cc = GetClassPowerCustomColor()
+            cpColor = { cc.r, cc.g, cc.b }
+        end
+        bar:SetStatusBarColor(cpColor[1], cpColor[2], cpColor[3], 1)
 
         bar._bg:SetColorTexture(bgCol.r, bgCol.g, bgCol.b, bgCol.a)
         bar:Show()

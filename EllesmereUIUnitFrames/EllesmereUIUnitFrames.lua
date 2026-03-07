@@ -1841,6 +1841,24 @@ local function CreatePowerBar(frame, unit, settings)
 
     ApplyPowerBarOpacity(power, UnitToSettingsKey(unit))
 
+    -- Shadow Priest / Elemental Shaman: show Mana on the power bar
+    -- (Insanity / Maelstrom is shown as class resource on Resource Bars)
+    if unit == "player" then
+        local _, classFile = UnitClass("player")
+        if classFile == "PRIEST" or classFile == "SHAMAN" then
+            power.displayAltPower = true
+            power.GetDisplayPower = function(self, u)
+                local spec = GetSpecialization and GetSpecialization()
+                if classFile == "PRIEST" and spec == 3 then -- Shadow
+                    return 0 -- Enum.PowerType.Mana
+                elseif classFile == "SHAMAN" and spec == 1 then -- Elemental
+                    return 0 -- Enum.PowerType.Mana
+                end
+                return nil
+            end
+        end
+    end
+
     return power
 end
 
