@@ -1,4 +1,4 @@
--------------------------------------------------------------------------------
+﻿-------------------------------------------------------------------------------
 --  EllesmereUIResourceBars.lua
 --  Custom class resource, health, and mana bar display
 --  Features: Health bar, primary resource bar (mana/rage/energy/etc),
@@ -289,7 +289,7 @@ local DEFAULTS = {
             textXOffset = 0,
             textYOffset = 0,
             offsetX     = 0,
-            offsetY     = -52,
+            offsetY     = -54,
             barAlpha    = 1.0,
             visibility  = "always",  -- "always","combat","target"
             orientation = "HORIZONTAL",  -- "HORIZONTAL","VERTICAL_UP","VERTICAL_DOWN"
@@ -327,17 +327,13 @@ local DEFAULTS = {
             width         = 220,
             height        = 20,
             anchorX       = 0,
-            anchorY       = -50,
+            anchorY       = -54,
             fillR         = playerCC[1], fillG = playerCC[2], fillB = playerCC[3], fillA = 1,
             gradientEnabled = false,
             gradientR     = 0.20, gradientG = 0.20, gradientB = 0.80, gradientA = 1,
             gradientDir   = "HORIZONTAL",  -- "HORIZONTAL","VERTICAL"
             texture       = "none",
             showSpark     = true,
-            showIcon      = true,
-            iconSize      = 20,
-            iconX         = 0,
-            iconY         = 0,
             borderSize    = 1,
             borderR       = 0, borderG = 0, borderB = 0, borderA = 1,
             bgR           = 0, bgG = 0, bgB = 0, bgA = 0.7,
@@ -350,7 +346,6 @@ local DEFAULTS = {
             spellTextX    = 0,
             spellTextY    = 0,
             scale         = 1.0,
-            iconAttach    = true,
             unlockPos     = nil,
         },
         general = {
@@ -459,6 +454,25 @@ local function ApplyBarTexture(bar, texKey)
     if ft then PP.DisablePixelSnap(ft) end
 end
 
+
+-- Compute pixel-snapped pip geometry for a given frame's effective scale.
+-- Returns snappedSp, baseW, remainder — all in logical UI units but aligned
+-- to physical pixel boundaries so gaps never collapse at any UI scale.
+local function CalcPipGeometry(totalW, numPips, pipSp, frame)
+    local es = frame:GetEffectiveScale()
+    if es <= 0 then es = 1 end
+    -- 1 physical pixel expressed in logical units for this frame
+    local onePixel = PP.perfect / es
+    -- Spacing must be at least 1 physical pixel; snap to nearest pixel boundary
+    local snappedSp = math.max(onePixel, math.floor(pipSp * es + 0.5) / es)
+    -- Recompute base pip width using snapped spacing, then snap it too
+    local rawBaseW = (totalW - (numPips - 1) * snappedSp) / numPips
+    local baseW = math.floor(rawBaseW * es + 0.5) / es
+    -- Remainder: how many pips get 1 extra physical pixel to fill the total
+    local usedW = baseW * numPips + snappedSp * (numPips - 1)
+    local remainderPx = math.floor((totalW - usedW) * es + 0.5)
+    return snappedSp, baseW, remainderPx, onePixel
+end
 
 local function MakePixelBorder(parent, r, g, b, a, size)
     local alpha = a or 1
@@ -837,7 +851,8 @@ local function RegisterUnlockElements()
         getFrame = function() return castBarFrame end,
         getSize = function()
             local cb = ERB.db.profile.castBar
-            return cb.width, cb.height
+            -- Total width includes the icon (h×h) plus border gap
+            return cb.width + cb.height + cb.borderSize, cb.height
         end,
         getScale = function()
             return ERB.db.profile.castBar.scale or 1.0
@@ -861,7 +876,7 @@ local function RegisterUnlockElements()
         clearPosition = function()
             local cb = ERB.db.profile.castBar
             cb.unlockPos = nil
-            cb.anchorX = 0; cb.anchorY = -50
+            cb.anchorX = 0; cb.anchorY = -54
         end,
         applyPosition = function()
             local cb = ERB.db.profile.castBar
@@ -1183,7 +1198,7 @@ local function BuildBars()
             local function ApplyPowerBarTransform()
                 local s = primaryBar["_barAnim_scale"] or pp.scale or 1
                 local ox = primaryBar["_barAnim_ox"] or pp.offsetX or 0
-                local oy = primaryBar["_barAnim_oy"] or pp.offsetY or -52
+                local oy = primaryBar["_barAnim_oy"] or pp.offsetY or -54
                 local w = primaryBar["_barAnim_w"] or pp.width or 214
                 local h2 = primaryBar["_barAnim_h"] or pp.height or 4
                 local ow, oh = OrientedSize(w, h2, ppOri)
@@ -1194,7 +1209,7 @@ local function BuildBars()
             end
             SmoothBarAnimate(primaryBar, "scale", pp.scale or 1, function() ApplyPowerBarTransform() end)
             SmoothBarAnimate(primaryBar, "ox", pp.offsetX or 0, function() ApplyPowerBarTransform() end)
-            SmoothBarAnimate(primaryBar, "oy", pp.offsetY or -52, function() ApplyPowerBarTransform() end)
+            SmoothBarAnimate(primaryBar, "oy", pp.offsetY or -54, function() ApplyPowerBarTransform() end)
             SmoothBarAnimate(primaryBar, "w", pp.width or 214, function() ApplyPowerBarTransform() end)
             SmoothBarAnimate(primaryBar, "h", pp.height or 4, function() ApplyPowerBarTransform() end)
         end
@@ -1347,6 +1362,8 @@ local function BuildBars()
             secondaryBar:ApplyBorder(0, 0, 0, 0, 0)
             secondaryBar:Show()
         elseif cachedSecondary.type == "runes" then
+            local numPips = 6
+            local snappedSp, baseW, remainderPx, onePixel = CalcPipGeometry(totalW, numPips, pipSp, secondaryFrame)
             for i = 1, 6 do
                 if not runeFrames[i] then
                     runeFrames[i] = CreatePip(secondaryFrame, 20, pipH, i,
@@ -1357,17 +1374,13 @@ local function BuildBars()
                     cdText:SetPoint("CENTER")
                     runeFrames[i]._cdText = cdText
                 end
-                -- Distribute total width evenly: base pip width + 1 extra pixel for
-                -- the first (remainder) pips so spacing is always exactly pipSp.
-                local numPips = 6
-                local baseW = math.floor((totalW - (numPips - 1) * pipSp) / numPips)
-                local remainder = totalW - (numPips - 1) * pipSp - baseW * numPips
+                -- Pixel-snapped geometry: spacing guaranteed >= 1 physical pixel.
                 local x0 = 0
                 for j = 1, i - 1 do
-                    local w = baseW + (j <= remainder and 1 or 0)
-                    x0 = x0 + w + pipSp
+                    local w = baseW + (j <= remainderPx and onePixel or 0)
+                    x0 = x0 + w + snappedSp
                 end
-                local x1 = x0 + baseW + (i <= remainder and 1 or 0)
+                local x1 = x0 + baseW + (i <= remainderPx and onePixel or 0)
                 local rf = runeFrames[i]
                 local function ApplyRunePos()
                     local ax0 = rf["_barAnim_x0"] or x0
@@ -1395,21 +1408,19 @@ local function BuildBars()
             for i = 7, #pips do if pips[i] then pips[i]:Hide() end end
             if secondaryBar then secondaryBar:Hide() end
         else
+            local snappedSp, baseW, remainderPx, onePixel = CalcPipGeometry(totalW, maxPts, pipSp, secondaryFrame)
             for i = 1, maxPts do
                 if not pips[i] then
                     pips[i] = CreatePip(secondaryFrame, 20, pipH, i,
                         0, 0, 0, 0, 0)
                 end
-                -- Distribute total width evenly: base pip width + 1 extra pixel for
-                -- the first (remainder) pips so spacing is always exactly pipSp.
-                local baseW = math.floor((totalW - (maxPts - 1) * pipSp) / maxPts)
-                local remainder = totalW - (maxPts - 1) * pipSp - baseW * maxPts
+                -- Pixel-snapped geometry: spacing guaranteed >= 1 physical pixel.
                 local x0 = 0
                 for j = 1, i - 1 do
-                    local w = baseW + (j <= remainder and 1 or 0)
-                    x0 = x0 + w + pipSp
+                    local w = baseW + (j <= remainderPx and onePixel or 0)
+                    x0 = x0 + w + snappedSp
                 end
-                local x1 = x0 + baseW + (i <= remainder and 1 or 0)
+                local x1 = x0 + baseW + (i <= remainderPx and onePixel or 0)
                 local pip = pips[i]
                 local function ApplyPipPos()
                     local ax0 = pip["_barAnim_x0"] or x0
@@ -1590,7 +1601,14 @@ local function UpdatePrimaryBar()
     if pp.textFormat ~= "none" then
         local fmt = pp.textFormat
         local txt
-        if fmt == "both" then
+        if fmt == "smart" then
+            local isPercent = EllesmereUI.IsSmartPowerPercent and EllesmereUI.IsSmartPowerPercent()
+            if isPercent then
+                txt = format("%d", pctRaw) .. "%"
+            else
+                txt = AbbreviateLargeNumbers(cur)
+            end
+        elseif fmt == "both" then
             txt = AbbreviateLargeNumbers(cur) .. " | " .. format("%d", pctRaw) .. "%"
         elseif fmt == "curpp" then
             txt = AbbreviateLargeNumbers(cur)
@@ -1683,26 +1701,25 @@ local function UpdateSecondaryResource()
         end
         local totalRunes = readyN + cdN
 
-        -- Compute pip geometry (same math as BuildBars)
+        -- Compute pixel-snapped pip geometry (spacing guaranteed >= 1 physical pixel)
         local numPips = 6
         local totalW = sp.pipWidth or 214
         local pipSp = sp.pipSpacing or 1
-        local baseW = floor((totalW - (numPips - 1) * pipSp) / numPips)
-        local remainder = totalW - (numPips - 1) * pipSp - baseW * numPips
+        local snappedSp, baseW, remainderPx, onePixel = CalcPipGeometry(totalW, numPips, pipSp, secondaryFrame)
 
         for pos = 1, totalRunes do
             local runeIdx = _runeOrder[pos]
             local rf = runeFrames[runeIdx]
             if rf and rf:IsShown() then
                 -- x position accumulates across slots (no inner loop)
-                local w = baseW + (pos <= remainder and 1 or 0)
+                local w = baseW + (pos <= remainderPx and onePixel or 0)
                 local x0 = 0
                 if pos > 1 then
-                    -- Sum widths of all previous slots + spacing
-                    x0 = baseW * (pos - 1) + pipSp * (pos - 1)
-                    -- Add extra pixels for remainder distribution
-                    local extraPx = pos - 1 < remainder and (pos - 1) or remainder
-                    x0 = x0 + extraPx
+                    -- Sum widths of all previous slots + snapped spacing
+                    x0 = baseW * (pos - 1) + snappedSp * (pos - 1)
+                    -- Add extra physical pixels for remainder distribution
+                    local extraPips = math.min(pos - 1, remainderPx)
+                    x0 = x0 + extraPips * onePixel
                 end
                 rf:ClearAllPoints()
                 rf:SetPoint("LEFT", secondaryFrame, "LEFT", x0, 0)
@@ -2405,29 +2422,31 @@ BuildCastBar = function()
 
     -- Apply settings
     local w, h = cb.width, cb.height
+    local bs = cb.borderSize
+    -- Total frame width includes icon (h x h) + border gap between icon and bar
+    local totalW = w + h + bs
     if cb.unlockPos and cb.unlockPos.point then
         -- Position managed by unlock mode � only animate size changes
         local rp = cb.unlockPos.relPoint or cb.unlockPos.point
         local px, py = cb.unlockPos.x or 0, cb.unlockPos.y or 0
         local function ApplyCastUnlockTransform()
-            local aw = castBarFrame["_barAnim_w"] or w
+            local aw = castBarFrame["_barAnim_w"] or totalW
             local ah = castBarFrame["_barAnim_h"] or h
             castBarFrame:SetScale(cb.scale or 1)
             castBarFrame:SetSize(aw, ah)
             castBarFrame:ClearAllPoints()
             castBarFrame:SetPoint(cb.unlockPos.point, UIParent, rp, px, py)
         end
-        SmoothBarAnimate(castBarFrame, "w", w, function() ApplyCastUnlockTransform() end)
+        SmoothBarAnimate(castBarFrame, "w", totalW, function() ApplyCastUnlockTransform() end)
         SmoothBarAnimate(castBarFrame, "h", h, function() ApplyCastUnlockTransform() end)
     else
         castBarFrame:SetScale(cb.scale or 1)
-        castBarFrame:SetSize(w, h)
+        castBarFrame:SetSize(totalW, h)
         castBarFrame:ClearAllPoints()
         castBarFrame:SetPoint("CENTER", UIParent, "CENTER", cb.anchorX, cb.anchorY)
     end
 
-    -- Border
-    local bs = cb.borderSize
+    -- Border (wraps the full container including icon)
     local br, bg2, bb, ba = cb.borderR, cb.borderG, cb.borderB, cb.borderA
     for _, edge in ipairs({ castBarFrame._bT, castBarFrame._bB, castBarFrame._bL, castBarFrame._bR }) do
         edge:SetColorTexture(br, bg2, bb, ba)
@@ -2449,10 +2468,18 @@ BuildCastBar = function()
     castBarFrame._bR:SetPoint("BOTTOMRIGHT", castBarFrame._bB, "TOPRIGHT", 0, 0)
     castBarFrame._bR:SetWidth(bs)
 
-    -- Bar inset by border
+    -- Icon: left side of the container, inset by border
+    local iconFrame = castBarFrame._iconFrame
+    local iSize = h - bs * 2
+    iconFrame:SetSize(iSize, iSize)
+    iconFrame:ClearAllPoints()
+    iconFrame:SetPoint("TOPLEFT", castBarFrame, "TOPLEFT", bs, -bs)
+    iconFrame:Show()
+
+    -- Bar: right of the icon, inset by border
     local bar = castBarFrame._bar
     bar:ClearAllPoints()
-    bar:SetPoint("TOPLEFT", castBarFrame, "TOPLEFT", bs, -bs)
+    bar:SetPoint("TOPLEFT", castBarFrame, "TOPLEFT", h + bs, -bs)
     bar:SetPoint("BOTTOMRIGHT", castBarFrame, "BOTTOMRIGHT", -bs, bs)
 
     -- Bar texture
@@ -2535,17 +2562,6 @@ BuildCastBar = function()
         spark:Hide()
     end
 
-    -- Icon
-    local iconFrame = castBarFrame._iconFrame
-    if cb.showIcon then
-        local iSize = (cb.iconAttach and h) or (cb.iconSize or h)
-        iconFrame:SetSize(iSize, iSize)
-        iconFrame:ClearAllPoints()
-        iconFrame:SetPoint("RIGHT", castBarFrame, "LEFT", cb.iconX or 0, cb.iconY or 0)
-        iconFrame:Show()
-    else
-        iconFrame:Hide()
-    end
 
     -- Timer text
     local timerText = castBarFrame._timerText
@@ -2656,8 +2672,8 @@ OnCastStart = function()
     end
     castBarFrame._numStages = 0
 
-    -- Icon
-    if cb.showIcon then
+    -- Icon: always shown
+    do
         local spellInfo = C_Spell.GetSpellInfo(spellID)
         local iconTex = spellInfo and spellInfo.iconID
         if iconTex then
@@ -2695,8 +2711,8 @@ OnChannelStart = function()
     end
     castBarFrame._numStages = 0
 
-    -- Icon
-    if cb.showIcon then
+    -- Icon: always shown
+    do
         local spellInfo = C_Spell.GetSpellInfo(spellID)
         local iconTex = spellInfo and spellInfo.iconID
         if iconTex then
@@ -2800,8 +2816,8 @@ OnEmpowerStart = function()
     castBarFrame._nameText:SetText(name)
     castBarFrame._bar:SetValue(0)
 
-    -- Icon
-    if cb.showIcon then
+    -- Icon: always shown
+    do
         local spellInfo = C_Spell.GetSpellInfo(spellID)
         local iconTex = spellInfo and spellInfo.iconID
         if iconTex then

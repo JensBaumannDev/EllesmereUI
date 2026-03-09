@@ -93,6 +93,19 @@ do
                     if EllesmereUIDB and EllesmereUIDB.ppUIScale then
                         ApplyScaleSafe(EllesmereUIDB.ppUIScale)
                     end
+                    -- Re-snap all borders unconditionally. UI_SCALE_CHANGED only
+                    -- fires when the scale value actually changes, so if the scale
+                    -- is already correct the event never fires and borders that
+                    -- were created after the last scale change never get re-snapped.
+                    if EllesmereUI and EllesmereUI.PP and EllesmereUI.PP.ResnapAllBorders then
+                        EllesmereUI.PP.ResnapAllBorders()
+                    end
+                end)
+                -- Second pass: catch any borders created late (e.g. lazy-init frames)
+                C_Timer.After(3, function()
+                    if EllesmereUI and EllesmereUI.PP and EllesmereUI.PP.ResnapAllBorders then
+                        EllesmereUI.PP.ResnapAllBorders()
+                    end
                 end)
             end
         end

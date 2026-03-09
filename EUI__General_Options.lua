@@ -1439,6 +1439,71 @@ initFrame:SetScript("OnEvent", function(self)
             if ssInitOff then ssCogBlock:Show() else ssCogBlock:Hide() end
         end
 
+        -- Row 5: Character Crosshair (left, with inline swatch) | empty (right)
+        local crosshairRow
+        crosshairRow, h = W:DualRow(parent, y,
+            { type="dropdown", text="Character Crosshair",
+              tooltip="Displays a crosshair at the center of the screen.",
+              values={ ["None"]="None", ["Thin"]="Thin", ["Normal"]="Normal", ["Thick"]="Thick" },
+              order={ "None", "Thin", "Normal", "Thick" },
+              getValue=function()
+                return (EllesmereUIDB and EllesmereUIDB.crosshairSize) or "None"
+              end,
+              setValue=function(v)
+                if not EllesmereUIDB then EllesmereUIDB = {} end
+                EllesmereUIDB.crosshairSize = v
+                if EllesmereUI._applyCrosshair then EllesmereUI._applyCrosshair() end
+                EllesmereUI:RefreshPage()
+              end },
+            { type="label", text="" }
+        );  y = y - h
+
+        -- Inline color swatch on the crosshair dropdown (left region)
+        do
+            local leftRgn = crosshairRow._leftRegion
+            local function crosshairOff()
+                return not EllesmereUIDB or (EllesmereUIDB.crosshairSize or "None") == "None"
+            end
+
+            local chSwGet = function()
+                local c = EllesmereUIDB and EllesmereUIDB.crosshairColor
+                if c then return c.r, c.g, c.b, c.a end
+                return 1, 1, 1, 0.75
+            end
+            local chSwSet = function(r, g, b, a)
+                if not EllesmereUIDB then EllesmereUIDB = {} end
+                EllesmereUIDB.crosshairColor = { r = r, g = g, b = b, a = a or 1 }
+                if EllesmereUI._applyCrosshair then EllesmereUI._applyCrosshair() end
+            end
+            local chSwatch, chUpdateSwatch = EllesmereUI.BuildColorSwatch(leftRgn, leftRgn:GetFrameLevel() + 5, chSwGet, chSwSet, true, 20)
+            PP.Point(chSwatch, "RIGHT", leftRgn._control, "LEFT", -12, 0)
+            leftRgn._lastInline = chSwatch
+
+            local chSwBlock = CreateFrame("Frame", nil, chSwatch)
+            chSwBlock:SetAllPoints()
+            chSwBlock:SetFrameLevel(chSwatch:GetFrameLevel() + 10)
+            chSwBlock:EnableMouse(true)
+            chSwBlock:SetScript("OnEnter", function()
+                EllesmereUI.ShowWidgetTooltip(chSwatch, EllesmereUI.DisabledTooltip("Character Crosshair"))
+            end)
+            chSwBlock:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
+
+            EllesmereUI.RegisterWidgetRefresh(function()
+                local off = crosshairOff()
+                if off then
+                    chSwatch:SetAlpha(0.3)
+                    chSwBlock:Show()
+                else
+                    chSwatch:SetAlpha(1)
+                    chSwBlock:Hide()
+                end
+                chUpdateSwatch()
+            end)
+            local chInitOff = crosshairOff()
+            chSwatch:SetAlpha(chInitOff and 0.3 or 1)
+            if chInitOff then chSwBlock:Show() else chSwBlock:Hide() end
+        end
+
         _, h = W:Spacer(parent, y, 20);  y = y - h
 
         -------------------------------------------------------------------
@@ -2723,6 +2788,80 @@ initFrame:SetScript("OnEvent", function(self)
         end)
     end
 
+    ---------------------------------------------------------------------------
+    --  Runtime: Character Crosshair
+    ---------------------------------------------------------------------------
+    do
+        local PP = EllesmereUI.PanelPP
+        local crosshairFrame
+        local function CreateCrosshair()
+            if crosshairFrame then return end
+            crosshairFrame = CreateFrame("Frame", "EUI_CharacterCrosshair", UIParent)
+            crosshairFrame:SetFrameStrata("HIGH")
+            crosshairFrame:SetFrameLevel(100)
+            crosshairFrame:EnableMouse(false)
+            crosshairFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+            crosshairFrame:SetSize(1, 1)
+
+            local function MakeArm()
+                local t = crosshairFrame:CreateTexture(nil, "OVERLAY")
+                if t.SetSnapToPixelGrid then
+                    t:SetSnapToPixelGrid(false)
+                    t:SetTexelSnappingBias(0)
+                end
+                return t
+            end
+            crosshairFrame._hBar = MakeArm()
+            crosshairFrame._vBar = MakeArm()
+        end
+
+        EllesmereUI._applyCrosshair = function()
+            local size = EllesmereUIDB and EllesmereUIDB.crosshairSize or "None"
+            if size == "None" then
+                if crosshairFrame then crosshairFrame:Hide() end
+                return
+            end
+
+            CreateCrosshair()
+
+            local c = EllesmereUIDB and EllesmereUIDB.crosshairColor
+            local cr = c and c.r or 1
+            local cg = c and c.g or 1
+            local cb = c and c.b or 1
+            local ca = c and c.a or 0.75
+
+            -- Thickness in logical pixels: Thin=1, Normal=2, Thick=3
+            -- Do NOT use PP.Scale() on border/line thickness — raw pixel count
+            local thickness = (size == "Thin") and 1 or (size == "Thick") and 3 or 2
+            -- Arm length: 20 logical px each direction, snapped to physical pixels
+            local ARM = PP.Scale(20)
+
+            local hBar = crosshairFrame._hBar
+            local vBar = crosshairFrame._vBar
+
+            hBar:SetColorTexture(cr, cg, cb, ca)
+            hBar:ClearAllPoints()
+            hBar:SetPoint("LEFT",  crosshairFrame, "CENTER", -ARM, 0)
+            hBar:SetPoint("RIGHT", crosshairFrame, "CENTER",  ARM, 0)
+            hBar:SetHeight(thickness)
+
+            vBar:SetColorTexture(cr, cg, cb, ca)
+            vBar:ClearAllPoints()
+            vBar:SetPoint("TOP",    crosshairFrame, "CENTER", 0,  ARM)
+            vBar:SetPoint("BOTTOM", crosshairFrame, "CENTER", 0, -ARM)
+            vBar:SetWidth(thickness)
+
+            crosshairFrame:Show()
+        end
+
+        -- Apply on login
+        C_Timer.After(1, function()
+            if EllesmereUIDB and EllesmereUIDB.crosshairSize and EllesmereUIDB.crosshairSize ~= "None" then
+                EllesmereUI._applyCrosshair()
+            end
+        end)
+    end
+
     end  -- EUI_ExtrasRuntimeInit guard
 
     ---------------------------------------------------------------------------
@@ -3225,7 +3364,7 @@ initFrame:SetScript("OnEvent", function(self)
     EllesmereUI:RegisterModule(GLOBAL_KEY, {
         title       = "Global Settings",
         description = "General options for all EllesmereUI addons.",
-        pages       = { PAGE_GENERAL, PAGE_CORE, PAGE_COLORS, PAGE_PROFILES, "Disable Addons" },
+        pages       = { PAGE_GENERAL, PAGE_PROFILES, PAGE_CORE, PAGE_COLORS, "Disable Addons" },
         disabledPages = disabledList,
         disabledPageTooltips = disabledTips,
         buildPage   = function(pageName, parent, yOffset)
@@ -3275,6 +3414,9 @@ initFrame:SetScript("OnEvent", function(self)
             end
             if EllesmereUI._applySecondaryStats then
                 EllesmereUI._applySecondaryStats()
+            end
+            if EllesmereUI._applyCrosshair then
+                EllesmereUI._applyCrosshair()
             end
             if EllesmereUI._applyGuildChatPrivacy then
                 EllesmereUI._applyGuildChatPrivacy()

@@ -2028,6 +2028,23 @@ initFrame:SetScript("OnEvent", function(self)
         })
     end
 
+    local function ShowWrongBarTypePopup(spellName, isSpellBuff)
+        if not EllesmereUI or not EllesmereUI.ShowConfirmPopup then return end
+        local correctBar = isSpellBuff and "a Buff bar" or "a Cooldown or Utility bar"
+        EllesmereUI:ShowConfirmPopup({
+            title = "Wrong Bar Type",
+            message = (spellName or "This spell") .. " is tracked by Blizzard as " .. (isSpellBuff and "a buff/aura" or "a cooldown") .. " and should be added to " .. correctBar .. ".",
+            confirmText = "Open Blizzard CDM",
+            cancelText = "Close",
+            onConfirm = function()
+                if CooldownViewerSettings and CooldownViewerSettings.Show then
+                    CooldownViewerSettings:Show()
+                end
+                if EllesmereUI._mainFrame then EllesmereUI._mainFrame:Hide() end
+            end,
+        })
+    end
+
     ---------------------------------------------------------------------------
     --  Spell picker dropdown (right-click on icon or click "+" button)
     ---------------------------------------------------------------------------
@@ -2177,6 +2194,16 @@ initFrame:SetScript("OnEvent", function(self)
         end
 
         local function MakeItem(sp, isDisabled, firesPopup)
+            -- Check if this spell belongs to the wrong category group for this bar type.
+            -- e.g. a cooldown-category spell on a buffs bar, or vice versa.
+            local wrongCatGroup = false
+            if not isDisabled and sp.cdmCatGroup then
+                if isBuffBar and sp.cdmCatGroup == "cooldown" then
+                    wrongCatGroup = true
+                elseif not isBuffBar and not isTrinketBar and sp.cdmCatGroup == "buff" then
+                    wrongCatGroup = true
+                end
+            end
             local item = CreateFrame("Button", nil, inner)
             item:SetHeight(ITEM_H)
             item:SetPoint("TOPLEFT", inner, "TOPLEFT", 1, -mH)
@@ -2219,6 +2246,10 @@ initFrame:SetScript("OnEvent", function(self)
                 end)
                 item:SetScript("OnClick", function()
                     menu:Hide()
+                    if wrongCatGroup then
+                        ShowWrongBarTypePopup(sp.name, sp.cdmCatGroup == "buff")
+                        return
+                    end
                     if firesPopup then
                         ShowNotDisplayedPopup()
                         return
@@ -3371,14 +3402,15 @@ initFrame:SetScript("OnEvent", function(self)
                     slot._previewSpellID = nil
                 end
 
+                local bSz = bd.borderSize or 1
                 slot._icon:ClearAllPoints()
-                PP.Point(slot._icon, "TOPLEFT", slot, "TOPLEFT", 1, -1)
-                PP.Point(slot._icon, "BOTTOMRIGHT", slot, "BOTTOMRIGHT", -1, 1)
+                PP.Point(slot._icon, "TOPLEFT", slot, "TOPLEFT", bSz, -bSz)
+                PP.Point(slot._icon, "BOTTOMRIGHT", slot, "BOTTOMRIGHT", -bSz, bSz)
                 slot._icon:Show()
 
                 if slot._ppBorders then
                     PP.SetBorderColor(slot, bR, bG, bB, 1)
-                    PP.SetBorderSize(slot, 1)
+                    PP.SetBorderSize(slot, bSz)
                 end
                 slot._bg:SetColorTexture(bd.bgR or 0.08, bd.bgG or 0.08, bd.bgB or 0.08, bd.bgA or 0.6)
                 if slot._bg.SetSnapToPixelGrid then slot._bg:SetSnapToPixelGrid(false); slot._bg:SetTexelSnappingBias(0) end

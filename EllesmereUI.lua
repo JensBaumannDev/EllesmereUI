@@ -1606,6 +1606,80 @@ if not EllesmereUI.ResolveThemeColor then
 end
 
 -------------------------------------------------------------------------------
+--  SharedMedia helpers
+--  Append LibSharedMedia-3.0 statusbar textures into a runtime texture table.
+--  Signature: AppendSharedMediaTextures(names, order, castBarNames, textures)
+--    names        – key → display-name string table
+--    order        – ordered array of keys (receives "---" + SM keys appended)
+--    castBarNames – optional secondary names table (may be nil)
+--    textures     – key → texture-path table
+--  Safe to call multiple times; duplicate keys are skipped via the textures
+--  table guard.
+-------------------------------------------------------------------------------
+function EllesmereUI.AppendSharedMediaTextures(names, order, castBarNames, textures)
+    local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
+    if not LSM then return end
+    local smTextures = LSM:HashTable("statusbar")
+    if not smTextures then return end
+
+    -- Collect SM texture names not already present, sort alphabetically
+    local sorted = {}
+    for name in pairs(smTextures) do
+        local key = "sm:" .. name
+        if not textures[key] then
+            sorted[#sorted + 1] = name
+        end
+    end
+    if #sorted == 0 then return end
+    table.sort(sorted)
+
+    -- Append separator + entries
+    order[#order + 1] = "---"
+    for _, name in ipairs(sorted) do
+        local key = "sm:" .. name
+        textures[key]      = smTextures[name]
+        names[key]         = name
+        order[#order + 1]  = key
+        if castBarNames then
+            castBarNames[key] = name
+        end
+    end
+end
+
+-------------------------------------------------------------------------------
+--  Append LibSharedMedia-3.0 fonts into a runtime font dropdown table.
+--  Signature: AppendSharedMediaFonts(values, order, opts)
+--    values  – key → { text, font } table (or key → path when keyByName=true)
+--    order   – ordered array of keys
+--    opts    – optional { keyByName = true } — use display name as key
+--  Safe to call multiple times; duplicate keys are skipped.
+-------------------------------------------------------------------------------
+function EllesmereUI.AppendSharedMediaFonts(values, order, opts)
+    local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
+    if not LSM then return end
+    local smFonts = LSM:HashTable("font")
+    if not smFonts then return end
+
+    local keyByName = opts and opts.keyByName
+    local sorted = {}
+    for name in pairs(smFonts) do
+        local key = keyByName and name or ("smf:" .. name)
+        if not values[key] then
+            sorted[#sorted + 1] = name
+        end
+    end
+    if #sorted == 0 then return end
+    table.sort(sorted)
+
+    order[#order + 1] = "---"
+    for _, name in ipairs(sorted) do
+        local key = keyByName and name or ("smf:" .. name)
+        values[key] = { text = name, font = smFonts[name] }
+        order[#order + 1] = key
+    end
+end
+
+-------------------------------------------------------------------------------
 --  Deferred file initialization
 --  Heavy UI files (Widgets, Presets, UnlockMode, Options) register their
 --  init functions here at load time but don't execute until the panel opens.
@@ -4596,13 +4670,14 @@ function EllesmereUI:SelectPage(pageName)
         return
     end
 
-    -- "Disable Addons" is a fake nav item — opens the Blizzard addon list.
+    -- "Disable Addons" is a fake nav item — close EUI and open the Blizzard addon list.
     if pageName == "Disable Addons" then
+        if EllesmereUI._mainFrame then EllesmereUI._mainFrame:Hide() end
         C_Timer.After(0, function()
             if not AddonList then
                 C_AddOns.LoadAddOn("Blizzard_AddonList")
             end
-            if AddonList then AddonList:Show() end
+            if AddonList then ShowUIPanel(AddonList) end
         end)
         return
     end
@@ -5116,7 +5191,7 @@ end
 -------------------------------------------------------------------------------
 --  Slash commands
 -------------------------------------------------------------------------------
-EllesmereUI.VERSION = "3.7.5"
+EllesmereUI.VERSION = "3.8"
 
 -- Register this addon's version into a shared global table (taint-free at load time)
 if not _G._EUI_AddonVersions then _G._EUI_AddonVersions = {} end

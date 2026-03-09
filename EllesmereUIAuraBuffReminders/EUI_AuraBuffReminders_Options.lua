@@ -287,7 +287,9 @@ initFrame:SetScript("OnEvent", function(self)
             local TOTAL_H = 80
             _eabrHeaderBaseH = TOTAL_H
             local hintH = (_previewHintFS and _previewHintFS:IsShown()) and 35 or 0
-            EllesmereUI:UpdateContentHeaderHeight(TOTAL_H + hintH)
+            -- Use the silent variant so resizing the header never triggers
+            -- scroll compensation (the height rarely changes here).
+            EllesmereUI:SetContentHeaderHeightSilent(TOTAL_H + hintH)
         end
     end
 

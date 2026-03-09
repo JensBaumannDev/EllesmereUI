@@ -1738,8 +1738,8 @@ initFrame:SetScript("OnEvent", function(self)
             { type = "dropdown", text = "Power Text",
               disabled = powerOff,
               disabledTooltip = "Enable Power Bar",
-              values = { none = "None", curpp = "Power Value", perpp = "Power %", both = "Power Value | Power %" },
-              order = { "none", "curpp", "perpp", "both" },
+              values = { none = "None", smart = "Smart Text", curpp = "Power Value", perpp = "Power %", both = "Power Value | Power %" },
+              order = { "none", "smart", "curpp", "perpp", "both" },
               getValue = function() local p = DB(); return p and p.primary.textFormat or "none" end,
               setValue = function(v)
                   local p = DB(); if not p then return end
@@ -2385,19 +2385,14 @@ initFrame:SetScript("OnEvent", function(self)
         local w, h = Snap(cb.width), Snap(cb.height)
         local bs = cb.borderSize
 
-        -- Container size: bar + icon
-        local iconW = 0
-        if cb.showIcon then iconW = Snap((cb.iconAttach and cb.height) or (cb.iconSize or cb.height)) end
-        pf.container:SetSize(w + iconW + Snap(4), math.max(h, cb.showIcon and iconW or h))
+        -- Container size: icon (h×h) + border gap + bar
+        local iconW = Snap(h)
+        pf.container:SetSize(w + iconW + Snap(bs), h)
         pf.container:ClearAllPoints(); pf.container:SetPoint("CENTER", pf.container:GetParent(), "CENTER", 0, 0)
         -- Bar frame
         pf.barFrame:SetSize(w, h)
         pf.barFrame:ClearAllPoints()
-        if cb.showIcon then
-            pf.barFrame:SetPoint("LEFT", pf.container, "LEFT", iconW, 0)
-        else
-            pf.barFrame:SetPoint("CENTER", pf.container, "CENTER", 0, 0)
-        end
+        pf.barFrame:SetPoint("LEFT", pf.container, "LEFT", iconW + Snap(bs), 0)
 
         -- Background
         local texKey = cb.texture
@@ -2454,15 +2449,13 @@ initFrame:SetScript("OnEvent", function(self)
             pf.spark:Hide()
         end
 
-        -- Icon
-        if cb.showIcon then
-            local iSize = Snap((cb.iconAttach and cb.height) or (cb.iconSize or cb.height))
+        -- Icon: always shown, left side of container inset by border
+        do
+            local iSize = Snap(h - bs * 2)
             pf.iconFrame:SetSize(iSize, iSize)
             pf.iconFrame:ClearAllPoints()
-            pf.iconFrame:SetPoint("RIGHT", pf.barFrame, "LEFT", cb.iconX or 0, cb.iconY or 0)
+            pf.iconFrame:SetPoint("TOPLEFT", pf.container, "TOPLEFT", Snap(bs), -Snap(bs))
             pf.iconFrame:Show()
-        else
-            pf.iconFrame:Hide()
         end
 
         -- Timer text
@@ -2514,17 +2507,13 @@ initFrame:SetScript("OnEvent", function(self)
 
         local w, h = Snap(cb.width), Snap(cb.height)
         local iconW = 0
-        if cb.showIcon then iconW = Snap((cb.iconAttach and cb.height) or (cb.iconSize or cb.height)) end
-        container:SetSize(w + iconW + Snap(4), math.max(h, cb.showIcon and iconW or h))
+        local iconW = Snap(h)
+        container:SetSize(w + iconW + Snap(cb.borderSize), h)
 
         -- Bar frame (holds bg, border, status bar)
         local barFrame = CreateFrame("Frame", nil, container)
         barFrame:SetSize(w, h)
-        if cb.showIcon then
-            barFrame:SetPoint("LEFT", container, "LEFT", iconW, 0)
-        else
-            barFrame:SetPoint("CENTER", container, "CENTER", 0, 0)
-        end
+        barFrame:SetPoint("LEFT", container, "LEFT", iconW + Snap(cb.borderSize), 0)
         _castBarPreviewFrames.barFrame = barFrame
         _castBarPreviewFrames.container = container
 
@@ -2581,16 +2570,15 @@ initFrame:SetScript("OnEvent", function(self)
         if not cb.showSpark then spark:Hide() end
         _castBarPreviewFrames.spark = spark
 
-        -- Icon
+        -- Icon: always shown, left side of container inset by border
         local iconFrame = CreateFrame("Frame", nil, container)
         local icon = iconFrame:CreateTexture(nil, "ARTWORK")
         icon:SetAllPoints()
         icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
         icon:SetTexture(NextCastBarIcon())
-        local iSize = (cb.iconAttach and h) or (cb.iconSize or h)
+        local iSize = Snap(h - bs * 2)
         iconFrame:SetSize(iSize, iSize)
-        iconFrame:SetPoint("RIGHT", barFrame, "LEFT", cb.iconX or 0, cb.iconY or 0)
-        if not cb.showIcon then iconFrame:Hide() end
+        iconFrame:SetPoint("TOPLEFT", container, "TOPLEFT", Snap(bs), -Snap(bs))
         _castBarPreviewFrames.iconFrame = iconFrame
         _castBarPreviewFrames.icon = icon
 
@@ -2623,9 +2611,7 @@ initFrame:SetScript("OnEvent", function(self)
         wipe(_hitOverlays)
         local overlayLevel = container:GetFrameLevel() + 20
         CreateHitOverlay(barFrame, "castBar", overlayLevel)
-        if cb.showIcon then
-            CreateHitOverlay(iconFrame, "castIcon", overlayLevel + 5)
-        end
+        CreateHitOverlay(iconFrame, "castIcon", overlayLevel + 5)
         if cb.showTimer then
             local ttHit = CreateFrame("Frame", nil, bar)
             ttHit:SetPoint("TOPLEFT", timerText, "TOPLEFT", -2, 2)
@@ -2712,7 +2698,7 @@ initFrame:SetScript("OnEvent", function(self)
         local castSection
         castSection, h = W:SectionHeader(parent, "LAYOUT", y);  y = y - h
 
-        -- Row 1: Enable Player Cast Bar (cog RESIZE: position/scale) | Show Icon (cog RESIZE: icon settings)
+        -- Row 1: Enable Player Cast Bar (cog RESIZE: position/scale) | empty
         local castEnableRow
         castEnableRow, h = W:DualRow(parent, y,
             { type = "toggle", text = "Enable Player Cast Bar",
@@ -2722,14 +2708,7 @@ initFrame:SetScript("OnEvent", function(self)
                   p.castBar.enabled = v; RefreshCast()
                   EllesmereUI:RefreshPage()
               end },
-            { type = "toggle", text = "Show Icon",
-              disabled = castOff,
-              disabledTooltip = "Enable Player Cast Bar",
-              getValue = function() local p = DB(); return p and p.castBar.showIcon end,
-              setValue = function(v)
-                  local p = DB(); if not p then return end
-                  p.castBar.showIcon = v; RefreshCast()
-              end }
+            { type = "label", text = "" }
         );  y = y - h
         -- Inline cog (DIRECTIONS) on Enable for x/y position
         do
@@ -2744,7 +2723,7 @@ initFrame:SetScript("OnEvent", function(self)
                           p.castBar.anchorX = v; RefreshCast()
                       end },
                     { type = "slider", label = "Y Offset", min = -600, max = 600, step = 1,
-                      get = function() local p = DB(); return p and p.castBar.anchorY or -50 end,
+                      get = function() local p = DB(); return p and p.castBar.anchorY or -54 end,
                       set = function(v)
                           local p = DB(); if not p then return end
                           p.castBar.anchorY = v; RefreshCast()
@@ -2774,57 +2753,6 @@ initFrame:SetScript("OnEvent", function(self)
             cogBtn:HookScript("OnShow", UpdateCogDisCB1)
             EllesmereUI.RegisterWidgetRefresh(UpdateCogDisCB1)
             UpdateCogDisCB1()
-        end
-        -- Inline cog (RESIZE) on Show Icon for icon size + x/y
-        do
-            local rgn = castEnableRow._rightRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
-                title = "Icon Settings",
-                rows = {
-                    { type = "toggle", label = "Attach to Cast Bar",
-                      get = function() local p = DB(); return p and p.castBar.iconAttach end,
-                      set = function(v)
-                          local p = DB(); if not p then return end
-                          p.castBar.iconAttach = v; RefreshCast()
-                      end },
-                    { type = "slider", label = "Icon Size", min = 8, max = 64, step = 1,
-                      disabled = function() local p = DB(); return p and p.castBar.iconAttach end,
-                      disabledTooltip = "Attach to Cast Bar",
-                      get = function() local p = DB(); return p and p.castBar.iconSize or 20 end,
-                      set = function(v)
-                          local p = DB(); if not p then return end
-                          p.castBar.iconSize = v; RefreshCast()
-                      end },
-                    { type = "slider", label = "X Offset", min = -100, max = 100, step = 1,
-                      get = function() local p = DB(); return p and p.castBar.iconX or 0 end,
-                      set = function(v)
-                          local p = DB(); if not p then return end
-                          p.castBar.iconX = v; RefreshCast()
-                      end },
-                    { type = "slider", label = "Y Offset", min = -100, max = 100, step = 1,
-                      get = function() local p = DB(); return p and p.castBar.iconY or 0 end,
-                      set = function(v)
-                          local p = DB(); if not p then return end
-                          p.castBar.iconY = v; RefreshCast()
-                      end },
-                },
-            })
-            local cogBtn = MakeCogBtn(rgn, cogShow, nil, EllesmereUI.RESIZE_ICON)
-            local cogDis = CreateFrame("Frame", nil, rgn)
-            cogDis:SetAllPoints(cogBtn)
-            cogDis:SetFrameLevel(cogBtn:GetFrameLevel() + 5)
-            cogDis:EnableMouse(true)
-            cogDis:SetScript("OnEnter", function()
-                EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip("Enable Player Cast Bar"))
-            end)
-            cogDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-            local function UpdateCogDisIcon()
-                local p = DB()
-                if p and (not p.castBar.enabled or not p.castBar.showIcon) then cogDis:Show() else cogDis:Hide() end
-            end
-            cogBtn:HookScript("OnShow", UpdateCogDisIcon)
-            EllesmereUI.RegisterWidgetRefresh(UpdateCogDisIcon)
-            UpdateCogDisIcon()
         end
 
         -- Row 2: Height | Width (sync icons push to power + health bars)

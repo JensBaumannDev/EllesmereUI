@@ -216,10 +216,19 @@ local _ecmeRawStartCache = {}    -- [ch] = start captured from SetCooldown hook
 local _ecmeRawDurCache = {}      -- [ch] = dur captured from SetCooldown hook
 
 -- Check if a Blizzard CDM buff-viewer child represents an actively running effect.
--- Uses only our own tracking tables — never reads tainted fields on the child frame.
+-- Uses only our own tracking tables and safe APIs — never reads tainted fields.
+-- For totem-type spells: uses GetTotemInfo(preferredTotemUpdateSlot).
+-- For summon/aura-type spells: uses our hook-captured cooldown state tables.
 local function IsBufChildCooldownActive(ch)
     if not ch then return false end
-    -- If we have captured a DurationObject or raw cooldown for this child, it was active.
+    -- Totem check: preferredTotemUpdateSlot is set by Blizzard on totem CDM children.
+    local totemSlot = ch.preferredTotemUpdateSlot
+    if totemSlot and type(totemSlot) == "number" and totemSlot > 0 then
+        local haveTotem = GetTotemInfo(totemSlot)
+        if haveTotem then return true end
+        return false
+    end
+    -- Non-totem: check our hook-captured cooldown state tables
     if _ecmeChildHasDurObj[ch] then return true end
     if _ecmeRawDurCache[ch] then return true end
     return false
@@ -3250,10 +3259,11 @@ local function UpdateCustomBarIcons(barKey)
                    and not (EllesmereUI._mainFrame and EllesmereUI._mainFrame:IsShown()) then
                     -- Use the per-tick active cache built from all CDM viewers
                     local isActive = _tickBlizzActiveCache[resolvedID] or _tickBlizzActiveCache[spellID]
-                    -- Fallback: check if the buff-viewer child's cooldown is running
-                    -- (covers summon spells with no aura like Dreadstalkers)
+                    -- Fallback: check buff-viewer child, then all-child cache (covers totems in
+                    -- Essential/Utility viewers and summons like Dreadstalkers with no aura)
                     if not isActive then
                         local blzBufCh = _tickBlizzBuffChildCache[resolvedID] or _tickBlizzBuffChildCache[spellID]
+                                      or _tickBlizzAllChildCache[resolvedID] or _tickBlizzAllChildCache[spellID]
                         if IsBufChildCooldownActive(blzBufCh) then isActive = true end
                     end
                     if not isActive then
@@ -3418,15 +3428,16 @@ UpdateCDMBarIcons = function(barKey)
 
             ourIcon:Show()
 
-            -- Hide buff icons when inactive (aura not active) ├â╞Æ├é┬ó├â┬ó├óΓé¼┼í├é┬¼├â┬ó├óΓÇÜ┬¼├é┬¥ buff bars only
+            -- Hide buff icons when inactive (aura not active) — buff bars only
             -- Skip during unlock mode so the bar is fully visible for repositioning
             local isBuffBar = (barKey == "buffs" or barData.barType == "buffs")
             if barData.hideBuffsWhenInactive and isBuffBar and not EllesmereUI._unlockActive
                and not (EllesmereUI._mainFrame and EllesmereUI._mainFrame:IsShown()) then
                 local isActive = _tickBlizzActiveCache[resolvedSid]
-                -- Fallback: check if the buff-viewer child's cooldown is running
+                -- Fallback: check buff-viewer child, then all-child cache (covers totems)
                 if not isActive then
                     local blzBufCh = _tickBlizzBuffChildCache[resolvedSid]
+                                  or _tickBlizzAllChildCache[resolvedSid]
                     if IsBufChildCooldownActive(blzBufCh) then isActive = true end
                 end
                 if not isActive then
@@ -3888,6 +3899,7 @@ local function UpdateTrackedBarIcons(barKey)
                     -- Fallback: check if the buff-viewer child's cooldown is running
                     if not isActive then
                         local blzBufCh = _tickBlizzBuffChildCache[resolvedID] or _tickBlizzBuffChildCache[spellID]
+                                      or _tickBlizzAllChildCache[resolvedID] or _tickBlizzAllChildCache[spellID]
                         if IsBufChildCooldownActive(blzBufCh) then isActive = true end
                     end
                     if not isActive then
@@ -4495,6 +4507,12 @@ function ns.GetCDMSpellsForBar(barKey)
     -- Scan Blizzard viewer children to find which spellIDs are actively tracked
     -- (not moved to "Not Tracked" by the user). The viewers still have children
     -- even though we hide them offscreen.
+    -- Category group: which Blizzard viewers correspond to this bar's categories
+    local isBuffType = (barType == "buffs")
+    local isCDType   = (barType == "cooldowns" or barType == "utility" or not barType)
+
+    -- Scan only the viewers that match this bar's category group.
+    -- Scanning all viewers would pollute blizzTracked with spells from the wrong group.
     local blizzTracked = {}  -- [spellID] = true
     local function ScanViewerSpellIDs(viewerName)
         local vf = _G[viewerName]
@@ -4515,10 +4533,13 @@ function ns.GetCDMSpellsForBar(barKey)
             end
         end
     end
-    ScanViewerSpellIDs("EssentialCooldownViewer")
-    ScanViewerSpellIDs("UtilityCooldownViewer")
-    ScanViewerSpellIDs("BuffIconCooldownViewer")
-    ScanViewerSpellIDs("BuffBarCooldownViewer")
+    if isBuffType then
+        ScanViewerSpellIDs("BuffIconCooldownViewer")
+        ScanViewerSpellIDs("BuffBarCooldownViewer")
+    else
+        ScanViewerSpellIDs("EssentialCooldownViewer")
+        ScanViewerSpellIDs("UtilityCooldownViewer")
+    end
 
     local spells = {}
     local seen = {}
@@ -4546,6 +4567,7 @@ function ns.GetCDMSpellsForBar(barKey)
                                 name = name,
                                 icon = tex,
                                 cdmCat = cat,
+                                cdmCatGroup = (cat == 2 or cat == 3) and "buff" or "cooldown",
                                 isDisplayed = ourPool[sid] or blizzTracked[sid] or false,
                                 isKnown = knownSet[cdID] or false,
                             }
