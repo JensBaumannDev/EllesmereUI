@@ -1110,37 +1110,33 @@ local frameCache = CreateFramePool("Frame", UIParent, nil, nil, false, function(
             PP.CreateBorder(parent, 0, 0, 0, 1, 1, "OVERLAY", 5)
         end
     end
-    local BORDER_TEX = "Interface\\AddOns\\EllesmereUINameplates\\Media\\border-colorless.png"
-    local BORDER_TEX_SIMPLE = "Interface\\AddOns\\EllesmereUINameplates\\Media\\border-simple.png"
-    local BORDER_CORNER = 6
 
-    local function CreateBorderSet(parent, tex, color)
-        local f = CreateFrame("Frame", nil, parent)
-        f:SetFrameLevel(parent:GetFrameLevel() + 5)
-        f:SetAllPoints()
-        f._texs = {}
-        local function Mk()
-            local t = f:CreateTexture(nil, "OVERLAY", nil, 7)
-            t:SetTexture(tex)
-            t:SetVertexColor(color.r, color.g, color.b)
-            f._texs[#f._texs + 1] = t
-            return t
+    -- Use PP.CreateBorder for stable, 2px thick borders
+    local function CreateBorderSet(parent, size, color)
+        local PP = EllesmereUI and EllesmereUI.PP
+        if not PP then return end
+        if parent._pixelBorder then return parent._pixelBorder end
+        local border = PP.CreateBorder(parent, color.r or 1, color.g or 1, color.b or 1, 1, size or 2, "OVERLAY", 5)
+        parent._pixelBorder = border
+        border:Hide()
+        border.SetBorderColor = function(self, r, g, b, a)
+            local PP = EllesmereUI and EllesmereUI.PP
+            if PP then PP.SetBorderColor(parent, r, g, b, a) end
         end
-        local tl = Mk(); tl:SetSize(BORDER_CORNER, BORDER_CORNER); tl:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0); tl:SetTexCoord(0, 0.5, 0, 0.5)
-        local tr = Mk(); tr:SetSize(BORDER_CORNER, BORDER_CORNER); tr:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0); tr:SetTexCoord(0.5, 1, 0, 0.5)
-        local bl = Mk(); bl:SetSize(BORDER_CORNER, BORDER_CORNER); bl:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0); bl:SetTexCoord(0, 0.5, 0.5, 1)
-        local br = Mk(); br:SetSize(BORDER_CORNER, BORDER_CORNER); br:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0); br:SetTexCoord(0.5, 1, 0.5, 1)
-        local top = Mk(); top:SetHeight(BORDER_CORNER); top:SetPoint("TOPLEFT", tl, "TOPRIGHT", 0, 0); top:SetPoint("TOPRIGHT", tr, "TOPLEFT", 0, 0); top:SetTexCoord(0.5, 0.5, 0, 0.5)
-        local bot = Mk(); bot:SetHeight(BORDER_CORNER); bot:SetPoint("BOTTOMLEFT", bl, "BOTTOMRIGHT", 0, 0); bot:SetPoint("BOTTOMRIGHT", br, "BOTTOMLEFT", 0, 0); bot:SetTexCoord(0.5, 0.5, 0.5, 1)
-        local lft = Mk(); lft:SetWidth(BORDER_CORNER); lft:SetPoint("TOPLEFT", tl, "BOTTOMLEFT", 0, 0); lft:SetPoint("BOTTOMLEFT", bl, "TOPLEFT", 0, 0); lft:SetTexCoord(0, 0.5, 0.5, 0.5)
-        local rgt = Mk(); rgt:SetWidth(BORDER_CORNER); rgt:SetPoint("TOPRIGHT", tr, "BOTTOMRIGHT", 0, 0); rgt:SetPoint("BOTTOMRIGHT", br, "TOPRIGHT", 0, 0); rgt:SetTexCoord(0.5, 1, 0.5, 0.5)
-        return f
+        border.SetBorderVisible = function(self, visible)
+            if visible then self:Show() else self:Hide() end
+        end
+        return border
     end
 
     local bc = { r = 0, g = 0, b = 0 }
     bc.r, bc.g, bc.b = GetBorderColor()
-    plate.borderFrame = CreateBorderSet(plate.health, BORDER_TEX, bc)
-    plate._simpleBorderFrame = CreateBorderSet(plate.health, BORDER_TEX_SIMPLE, bc)
+    plate.borderFrame = CreateBorderSet(plate.health, 2, bc) -- 2px, dark (ellesmere)
+    if plate.borderFrame and PP and PP.SetBorderSize then PP.SetBorderSize(plate.health, 2) end
+    plate._simpleBorderFrame = CreateBorderSet(plate.health, 1, { r = 1, g = 1, b = 1 }) -- 1px, white (simple)
+    if plate._simpleBorderFrame and PP and PP.SetBorderSize then PP.SetBorderSize(plate.health, 1) end
+
+    -- (Glow overlay removed, reverted to stable state)
 
     function plate:ApplyBorderStyle()
         local style = GetBorderStyle()
@@ -1149,16 +1145,20 @@ local frameCache = CreateFramePool("Frame", UIParent, nil, nil, false, function(
             plate._simpleBorderFrame:Hide()
         elseif style == "simple" then
             plate.borderFrame:Hide()
+            if PP and PP.SetBorderSize then PP.SetBorderSize(plate.health, 1) end
             plate._simpleBorderFrame:Show()
-        else
-            plate.borderFrame:Show()
+        else -- ellesmere oder andere
             plate._simpleBorderFrame:Hide()
+            if PP and PP.SetBorderSize then PP.SetBorderSize(plate.health, 2) end
+            plate.borderFrame:Show()
         end
     end
     function plate:ApplyBorderColor()
+        local PP = EllesmereUI and EllesmereUI.PP
+        if not PP then return end
         local cr, cg, cb = GetBorderColor()
-        for _, tex in ipairs(plate.borderFrame._texs) do tex:SetVertexColor(cr, cg, cb) end
-        for _, tex in ipairs(plate._simpleBorderFrame._texs) do tex:SetVertexColor(cr, cg, cb) end
+        PP.SetBorderColor(plate.borderFrame:GetParent(), cr, cg, cb, 1)
+        PP.SetBorderColor(plate._simpleBorderFrame:GetParent(), 1, 1, 1, 1)
     end
     plate:ApplyBorderStyle()
     -- Target glow, target arrows, and focus overlay are lazy-created on
@@ -3508,10 +3508,14 @@ function NameplateFrame:ApplyTarget()
     end
     -- Vibrant: override health bar border to white on selected target
     if isTarget and style == "vibrant" then
-        for _, tex in ipairs(self.borderFrame._texs) do tex:SetVertexColor(1, 1, 1) end
-        for _, tex in ipairs(self._simpleBorderFrame._texs) do tex:SetVertexColor(1, 1, 1) end
+        local PP = EllesmereUI and EllesmereUI.PP
+        if PP then PP.SetBorderColor(self.health, 1, 1, 1, 1) end
     else
-        self:ApplyBorderColor()
+        local PP = EllesmereUI and EllesmereUI.PP
+        if PP then
+            local cr, cg, cb = GetBorderColor()
+            PP.SetBorderColor(self.health, cr, cg, cb, 1)
+        end
     end
     if EllesmereUINameplatesDB and EllesmereUINameplatesDB.showTargetArrows then
         if isTarget then
