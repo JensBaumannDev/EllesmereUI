@@ -5019,7 +5019,7 @@ initFrame:SetScript("OnEvent", function(self)
         sharedBtbToggleRow, h = W:DualRow(parent, y,
             { type="toggle", text="Enable Text Bar",
               getValue=function() return SVal("bottomTextBar", false) end,
-              setValue=function(v) SSet("bottomTextBar", v); UpdatePreview() end },
+              setValue=function(v) SSet("bottomTextBar", v); ReloadAndUpdate(); EllesmereUI:RefreshPage() end },
             { type="dropdown", text="Position", values=btbPositionValues, order=btbPositionOrder,
               disabled=function() return not SVal("bottomTextBar", false) end,
               disabledTooltip="Enable Text Bar is off",

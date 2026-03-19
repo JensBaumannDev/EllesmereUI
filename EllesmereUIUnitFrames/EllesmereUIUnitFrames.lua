@@ -1264,6 +1264,7 @@ local function CreateBottomTextBar(frame, unit, settings, anchorFrame, xOffset, 
     local totalWidth = (btbW > 0 and isDetached) and btbW or (overrideWidth or settings.frameWidth)
 
     local btb = CreateFrame("Frame", nil, frame)
+    btb:SetFrameLevel(frame:GetFrameLevel() + 11)
     PP.Size(btb, totalWidth, btbH)
 
     if btbPos == "top" then
@@ -1273,7 +1274,7 @@ local function CreateBottomTextBar(frame, unit, settings, anchorFrame, xOffset, 
     elseif btbPos == "detached_bottom" then
         btb:SetPoint("TOP", frame, "BOTTOM", settings.btbX or 0, -15 + (settings.btbY or 0))
     else -- "bottom"
-        PP.Point(btb, "TOPLEFT", anchorFrame, "BOTTOMLEFT", xOffset or 0, 0)
+        PP.Point(btb, "BOTTOMLEFT", frame, "BOTTOMLEFT", xOffset or 0, 0)
     end
 
     local bgc = settings.btbBgColor or { r = 0.2, g = 0.2, b = 0.2 }
@@ -4454,6 +4455,7 @@ local function ReloadFrames()
                         if not frame.BottomTextBar then
                             frame.BottomTextBar = CreateBottomTextBar(frame, unit, settings, ppBtbAnchor, btbXOff, totalWidth)
                             frame._btb = frame.BottomTextBar
+                            frame.BottomTextBar:Show()
                         else
                             local btb = frame.BottomTextBar
                             PP.Size(btb, btbTW, settings.bottomTextBarHeight or 16)
@@ -4464,8 +4466,8 @@ local function ReloadFrames()
                                 btb:SetPoint("BOTTOM", frame, "TOP", settings.btbX or 0, 15 + (settings.btbY or 0))
                             elseif btbPos2 == "detached_bottom" then
                                 btb:SetPoint("TOP", frame, "BOTTOM", settings.btbX or 0, -15 + (settings.btbY or 0))
-                            else
-                                PP.Point(btb, "TOPLEFT", ppBtbAnchor, "BOTTOMLEFT", btbXOff, 0)
+                             else
+                                PP.Point(btb, "BOTTOMLEFT", frame, "BOTTOMLEFT", btbXOff, 0)
                             end
                             -- Update BTB bg color
                             if btb.bg then
@@ -4635,6 +4637,7 @@ local function ReloadFrames()
                         if not frame.BottomTextBar then
                             frame.BottomTextBar = CreateBottomTextBar(frame, unit, settings, tPpBtbAnchor, btbXOff, totalWidth)
                             frame._btb = frame.BottomTextBar
+                            frame.BottomTextBar:Show()
                         else
                             local btb = frame.BottomTextBar
                             PP.Size(btb, btbTW, settings.bottomTextBarHeight or 16)
@@ -4646,7 +4649,7 @@ local function ReloadFrames()
                             elseif btbPos2 == "detached_bottom" then
                                 btb:SetPoint("TOP", frame, "BOTTOM", settings.btbX or 0, -15 + (settings.btbY or 0))
                             else
-                                PP.Point(btb, "TOPLEFT", tPpBtbAnchor, "BOTTOMLEFT", btbXOff, 0)
+                                PP.Point(btb, "BOTTOMLEFT", frame, "BOTTOMLEFT", btbXOff, 0)
                             end
                             if btb.bg then
                                 local bgc = settings.btbBgColor or { r = 0.2, g = 0.2, b = 0.2 }
@@ -4963,6 +4966,7 @@ local function ReloadFrames()
                     if not frame.BottomTextBar then
                         frame.BottomTextBar = CreateBottomTextBar(frame, unit, settings, fPpBtbAnchor, btbXOff, totalWidth)
                         frame._btb = frame.BottomTextBar
+                        frame.BottomTextBar:Show()
                     else
                         local btb = frame.BottomTextBar
                         PP.Size(btb, btbTW, settings.bottomTextBarHeight or 16)
@@ -4973,8 +4977,8 @@ local function ReloadFrames()
                             btb:SetPoint("BOTTOM", frame, "TOP", settings.btbX or 0, 15 + (settings.btbY or 0))
                         elseif btbPos2 == "detached_bottom" then
                             btb:SetPoint("TOP", frame, "BOTTOM", settings.btbX or 0, -15 + (settings.btbY or 0))
-                        else
-                            PP.Point(btb, "TOPLEFT", fPpBtbAnchor, "BOTTOMLEFT", btbXOff, 0)
+                         else
+                            PP.Point(btb, "BOTTOMLEFT", frame, "BOTTOMLEFT", btbXOff, 0)
                         end
                         if btb.bg then
                             local bgc = settings.btbBgColor or { r = 0.2, g = 0.2, b = 0.2 }
